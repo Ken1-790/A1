@@ -1,0 +1,976 @@
+<title>Bygg huset</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: ritning av ett hus i genomskärning bredvid en spelyta. Husets lager tänds när du placerar rätt. */
+:root{
+  --bg:#EEF1EE; --surface:#FBFCFB; --sunk:#E3E9E5; --ink:#17231F; --muted:#54635E; --line:#C9D3CE;
+  --accent:#1F6B5C; --accent-ink:#FFFFFF; --brass:#B07A1E; --brass-ink:#7A5210; --good:#1F7A4D; --bad:#B3402F;
+  --font-display:'Archivo','Arial Narrow',system-ui,sans-serif;
+  --font-body:'Source Sans 3',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --radius:6px; --step:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101816; --surface:#17211F; --sunk:#0D1412; --ink:#E6EEEB; --muted:#9BAEA8; --line:#2B3936;
+    --accent:#5DB8A5; --accent-ink:#08201B; --brass:#D9A546; --brass-ink:#E2B25E; --good:#6CC592; --bad:#E58570;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101816; --surface:#17211F; --sunk:#0D1412; --ink:#E6EEEB; --muted:#9BAEA8; --line:#2B3936;
+  --accent:#5DB8A5; --accent-ink:#08201B; --brass:#D9A546; --brass-ink:#E2B25E; --good:#6CC592; --bad:#E58570;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:17px;line-height:1.5;padding-block:20px;padding-inline:16px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.app{max-width:1040px;margin-inline:auto}
+
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:28px}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:800;font-size:1.15rem;letter-spacing:-.01em;color:var(--accent)}
+.status{display:flex;align-items:center;gap:18px;font-family:var(--font-mono);font-size:13px;color:var(--muted)}
+.rounds{display:flex;align-items:center;gap:6px}
+.seg{width:22px;height:6px;border-radius:3px;background:var(--line)}
+.seg.cur{background:var(--brass)}
+.seg.done{background:var(--accent)}
+.lbl{margin-left:6px}
+.score{color:var(--ink);font-variant-numeric:tabular-nums}
+.klink{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.status .klink{font-family:var(--font-mono);font-size:13px}
+a.btn{display:inline-block;text-decoration:none;color:var(--accent-ink)}
+a.btn:hover{filter:brightness(1.08)}
+.readbox{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-top:22px;max-width:56ch}
+.readbox span{font-size:15px;color:var(--muted);flex:1 1 200px}
+button.klink{background:none;border:0;padding:0;cursor:pointer}
+
+.read-top{margin-bottom:22px}
+.read-grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:40px;align-items:start}
+.toc{display:grid;gap:2px;position:sticky;top:16px}
+.toc-i{text-align:left;background:transparent;border:0;border-left:2px solid var(--line);border-radius:0;padding:7px 12px;cursor:pointer;color:var(--muted);font-size:15px;line-height:1.3}
+.toc-i:hover{color:var(--ink)}
+.toc-i.cur{border-left-color:var(--accent);color:var(--ink);font-weight:600}
+.prose{min-width:0}
+.prose h2{margin-bottom:6px}
+.prose h3{margin:28px 0 10px}
+.prose p{margin:0 0 14px;max-width:66ch}
+.prose ul,.prose ol{margin:0 0 16px;padding-left:1.3em;max-width:66ch}
+.prose li{margin-bottom:6px}
+.prose .chk{list-style:none;padding-left:0}
+.prose .chk label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.prose .chk input{margin-top:.35em;width:18px;height:18px;accent-color:var(--accent);flex:none}
+.tw{overflow-x:auto;margin:18px 0}
+.prose table{border-collapse:collapse;width:100%;min-width:480px;font-size:15px}
+.prose th,.prose td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+.prose th{color:var(--muted);font-weight:600;font-size:14px}
+.kv{background:var(--sunk);border-radius:var(--radius);padding:12px 14px;margin:16px 0 18px;max-width:66ch}
+.kv b{font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;color:var(--brass-ink);font-weight:500;margin-right:8px}
+.dg{margin:20px 0;max-width:640px}
+.dg svg{width:100%;height:auto;display:block}
+.dg-box{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.dg-perm{fill:color-mix(in srgb,var(--accent) 12%,transparent);stroke:var(--accent);stroke-width:2}
+.dg-n{font-family:var(--font-display);font-weight:700;font-size:14px;fill:var(--ink)}
+.dg-b{font-family:var(--font-body);font-size:13px;fill:var(--muted)}
+.dg-p{font-family:var(--font-body);font-size:13px;fill:var(--ink)}
+.dg-pn{font-family:var(--font-display);font-weight:700;font-size:15px;fill:var(--ink)}
+.dg-l{stroke:var(--line);stroke-width:1.5;stroke-dasharray:4 4;fill:none}
+.dg-a{stroke:var(--muted);stroke-width:1.5;fill:none}
+.dg-ah{fill:var(--muted)}
+@media (max-width:820px){
+  .read-grid{grid-template-columns:1fr;gap:18px}
+  .toc{position:static;display:flex;overflow-x:auto;gap:6px;padding-bottom:4px}
+  .toc-i{border-left:0;border-bottom:2px solid var(--line);white-space:nowrap}
+  .toc-i.cur{border-bottom-color:var(--accent)}
+}
+
+h1,h2,h3{font-family:var(--font-display);font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:0;text-wrap:balance}
+h1{font-size:clamp(2.4rem,7vw,4rem)}
+h2{font-size:clamp(1.6rem,4vw,2.1rem)}
+h3{font-size:1.25rem;line-height:1.2}
+h4{font-family:var(--font-mono);font-weight:500;font-size:12px;letter-spacing:.06em;color:var(--brass-ink);margin:0 0 8px}
+p{margin:0}
+
+.start{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:44px;align-items:center}
+.start .lead{margin-top:18px;max-width:52ch;font-size:1.1rem}
+.etapper{display:grid;gap:10px;margin:24px 0 22px;max-width:56ch}
+.etapp{display:grid;grid-template-columns:2.2em minmax(0,1fr) auto;align-items:baseline;gap:8px;text-align:left;padding:13px 16px;border:1.5px solid var(--line);border-radius:var(--radius);background:var(--surface);cursor:pointer;width:100%}
+.etapp:hover:not(:disabled){border-color:var(--accent)}
+.etapp .n{font-family:var(--font-mono);font-size:13px;color:var(--brass-ink)}
+.etapp .t{font-family:var(--font-display);font-weight:700;font-size:1.1rem;line-height:1.2}
+.etapp .s{display:block;font-family:var(--font-body);font-weight:400;font-size:14px;color:var(--muted)}
+.etapp .b{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-align:right}
+.etapp.locked{border-style:dashed;cursor:default;opacity:.7;background:transparent}
+.how ol{list-style:none;counter-reset:s;margin:0;padding:0;display:grid;gap:6px;max-width:56ch;font-size:15px;color:var(--muted)}
+.how li{counter-increment:s;display:grid;grid-template-columns:2.2em 1fr;align-items:baseline}
+.how li::before{content:counter(s);font-family:var(--font-mono);font-size:13px;color:var(--brass-ink)}
+.house-wrap svg,.house-col svg{display:block;width:100%;height:auto}
+.house-wrap{max-width:380px;margin-inline:auto;width:100%}
+
+.roof{fill:none;stroke:var(--line);stroke-width:2;stroke-linejoin:round;stroke-dasharray:5 4}
+.roof.on{fill:color-mix(in srgb,var(--accent) 18%,transparent);stroke:var(--accent);stroke-dasharray:none}
+.layer{fill:none;stroke:var(--line);stroke-width:2;stroke-dasharray:5 4;transition:fill .3s,stroke .3s}
+.layer.on{fill:color-mix(in srgb,var(--accent) 13%,transparent);stroke:var(--accent);stroke-dasharray:none}
+.door{fill:var(--brass)}
+.knob{fill:var(--bg)}
+.win{fill:none;stroke:var(--line);stroke-width:2}
+
+.game{display:grid;grid-template-columns:240px minmax(0,1fr);gap:40px;align-items:start}
+.house-col{position:sticky;top:16px}
+.cap{margin-top:10px;font-size:14px;color:var(--muted)}
+.kicker{font-family:var(--font-mono);font-size:12px;letter-spacing:.06em;color:var(--brass-ink);margin-bottom:8px}
+.intro{margin-top:10px;color:var(--muted);max-width:58ch}
+
+.slots{display:grid;gap:8px;margin:22px 0 18px}
+.slot{display:grid;gap:2px;text-align:left;padding:11px 14px;margin-left:calc(var(--d) * var(--step));border:1.5px dashed var(--line);border-radius:var(--radius);background:transparent;cursor:pointer;min-width:0}
+.slot:hover:not(:disabled){border-color:var(--accent)}
+.slot.filled{border-style:solid;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface));cursor:default}
+.slot .house{font-family:var(--font-display);font-weight:700}
+.slot .term{font-family:var(--font-mono);font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.slot.filled .term{color:var(--accent)}
+.slot .placed{font-size:15px}
+
+.buckets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:22px 0 18px}
+.bucket{display:flex;flex-direction:column;align-items:stretch;gap:6px;text-align:left;padding:12px 14px;border:1.5px dashed var(--line);border-radius:var(--radius);background:transparent;cursor:pointer;min-width:0;min-height:120px}
+.bucket:hover{border-color:var(--accent)}
+.bucket .bn{font-family:var(--font-display);font-weight:700;font-size:1.1rem}
+.bucket .bs{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.bucket .items{display:grid;gap:4px;margin-top:4px}
+.bucket .it{font-size:14px;line-height:1.35;padding:4px 8px;border-radius:4px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line))}
+
+.tray{display:flex;flex-wrap:wrap;gap:8px}
+.card{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:10px 14px;cursor:pointer;text-align:left;box-shadow:0 1px 0 var(--line);min-width:0;overflow-wrap:anywhere}
+.card.mono{font-family:var(--font-mono);font-size:14px}
+.card:hover{border-color:var(--accent)}
+.card.sel{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--surface));box-shadow:0 0 0 2px var(--accent)}
+.msg{min-height:3.2em;margin-top:14px;color:var(--muted);font-size:15px}
+.msg.warn{color:var(--bad)}
+
+.panel{border:1.5px solid var(--accent);border-radius:var(--radius);background:var(--surface);padding:18px 20px;display:grid;gap:12px;justify-items:start;margin-top:22px}
+.btn{font-family:var(--font-display);font-weight:700;font-size:1rem;background:var(--accent);color:var(--accent-ink);border:0;border-radius:var(--radius);padding:12px 22px;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.btn.ghost:hover{border-color:var(--accent);filter:none}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+
+.keys{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:13px;color:var(--muted);margin:20px 0 14px}
+.key{width:14px;height:14px;border-radius:50%;border:2px solid var(--brass)}
+.key.on{background:var(--brass)}
+.keys .klbl{margin-left:6px}
+.q{margin-bottom:14px}
+.opts{display:grid;gap:8px;margin-bottom:14px}
+.opt{display:block;width:100%;text-align:left;background:var(--surface);border:1.5px solid var(--line);border-radius:var(--radius);padding:12px 14px;cursor:pointer}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt.wrong{border-color:var(--bad);opacity:.6;cursor:default}
+.opt.right{border-color:var(--good);background:color-mix(in srgb,var(--good) 12%,var(--surface));cursor:default}
+.fb{margin-bottom:14px;min-height:3.2em}
+.fb.no{color:var(--bad)}
+
+.end{max-width:720px}
+.end .rank{margin:10px 0 14px}
+.res{width:100%;border-collapse:collapse;margin:22px 0;font-variant-numeric:tabular-nums}
+.res th,.res td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left}
+.res td:last-child,.res th:last-child{text-align:right;font-family:var(--font-mono);font-size:15px}
+.res th{font-weight:600;font-size:14px;color:var(--muted)}
+.big{font-family:var(--font-mono);font-size:1.1rem;color:var(--brass-ink)}
+
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes pop{0%{transform:scale(.97)}60%{transform:scale(1.015)}100%{transform:scale(1)}}
+.shake{animation:shake .3s}
+.pop{animation:pop .35s}
+@media (prefers-reduced-motion: reduce){.shake,.pop{animation:none}*{transition:none!important}}
+
+@media (max-width:820px){
+  .start{grid-template-columns:1fr;gap:24px}
+  .start .house-wrap{order:-1;max-width:240px}
+  .game{grid-template-columns:1fr;gap:20px}
+  .house-col{position:static;max-width:190px;margin-inline:auto}
+}
+@media (max-width:620px){
+  .buckets{grid-template-columns:1fr}
+  .bucket{min-height:0}
+}
+@media (max-width:520px){
+  :root{--step:8px}
+  .lbl{display:none}
+  .etapp{grid-template-columns:2em minmax(0,1fr)}
+  .etapp .b{grid-column:2;text-align:left}
+}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 11 12 3l9 8v10H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><rect x="10" y="14" width="4" height="7" fill="currentColor"/></svg>
+      <span>Bygg huset</span>
+    </div>
+    <div class="status">
+      <button type="button" class="klink" data-act="read" data-ch="0">Kompendiet</button>
+      <div class="rounds" id="rounds" hidden></div>
+      <div class="score" id="score"></div>
+    </div>
+  </header>
+
+  <main>
+    <section id="screen-start" class="start">
+      <div>
+        <h1>Bygg huset</h1>
+        <p class="lead">SharePoint hänger ihop som ett hus med rum, skåp, pärmar och nycklar. Välj en etapp och bygg det själv. Etapperna följer kompendiet, från användare till förvaltare.</p>
+        <div class="readbox">
+          <button type="button" class="btn" data-act="read" data-ch="1">Läs kompendiet</button>
+          <span>Ny på SharePoint? Läs först och spela sedan. Du kan öppna kompendiet när som helst, också mitt i spelet.</span>
+        </div>
+        <div class="etapper" id="etapper"></div>
+        <div class="how">
+          <h4>Så spelar du</h4>
+          <ol>
+            <li>Tryck på ett kort.</li>
+            <li>Tryck på platsen där det hör hemma.</li>
+            <li>Fel plats ger en ledtråd. Rätt plats ger poäng.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="house-wrap" id="house-start"></div>
+    </section>
+
+    <section id="screen-game" class="game" hidden>
+      <aside class="house-col">
+        <div id="house-game"></div>
+        <p class="cap" id="house-cap"></p>
+      </aside>
+      <div class="play-col">
+        <p class="kicker" id="round-kicker"></p>
+        <h2 id="round-title"></h2>
+        <p class="intro" id="round-intro"></p>
+        <div id="play"></div>
+      </div>
+    </section>
+
+    <section id="screen-end" class="end" hidden></section>
+
+    <section id="screen-read" class="read" hidden>
+      <div class="read-top"><button type="button" class="btn ghost" data-act="readback" id="read-back">← Till startsidan</button></div>
+      <div class="read-grid">
+        <nav class="toc" id="toc" aria-label="Kapitel"></nav>
+        <div class="prose">
+
+<article class="chapter" data-ch="1">
+<h2>1. Så läser du kompendiet</h2>
+<p class="kv"><b>Kort version</b>Tänk på SharePoint som ett hus. Kapitlen följer fyra etapper från nybörjare till förvaltare, och du kan hoppa över det du redan kan.</p>
+<p>SharePoint blir lättare att förstå om du tänker på det som ett hus med rum, skåp, pärmar, etiketter på pärmryggarna och nycklar. Samma bild återkommer i alla kapitel.</p>
+<p>Kompendiet tar dig från nybörjare till systemförvaltare i fyra etapper. Läs kapitlen i ordning första gången och använd dem som uppslagsbok därefter. Övningar för varje etapp finns i kapitel 8.</p>
+<div class="tw"><table>
+<thead><tr><th>Etapp</th><th>Kapitel</th><th>Efteråt kan du</th></tr></thead>
+<tbody>
+<tr><td>Hitta i huset (användare)</td><td>2–3</td><td>hitta, öppna, redigera och dela filer och förklara var de ligger</td></tr>
+<tr><td>Jobba i ett rum (aktiv användare)</td><td>4</td><td>använda kolumner, vyer och filter i stället för mappar</td></tr>
+<tr><td>Ansvara för ett rum (ägare)</td><td>5–6</td><td>dela ut behörigheter och förstå hur Teams hänger ihop med SharePoint</td></tr>
+<tr><td>Ansvara för huset (förvaltare)</td><td>7</td><td>styra struktur, regler och ordning över tid</td></tr>
+</tbody></table></div>
+</article>
+
+<article class="chapter" data-ch="2" hidden>
+<h2>2. Grunderna</h2>
+<p class="kv"><b>Kort version</b>SharePoint är platsen där filerna faktiskt ligger. Teams och OneDrive är olika ingångar, och gemensamma filer hör hemma i SharePoint eller ett team.</p>
+<p>SharePoint är den plats i Microsoft 365 där organisationens dokument och information lagras, organiseras och delas. Det mesta du gör i Teams, OneDrive och på intranätet vilar på samma grund.</p>
+<div class="tw"><table>
+<thead><tr><th>Verktyg</th><th>Vad det är</th><th>Använd det till</th></tr></thead>
+<tbody>
+<tr><td>SharePoint</td><td>Platsen där gemensamma filer och information faktiskt lagras</td><td>Gemensamma dokument, intranät och strukturerad information</td></tr>
+<tr><td>Teams</td><td>Samarbetsverktyg med chatt och möten, filerna ligger i SharePoint bakom</td><td>Det dagliga arbetet i ett team</td></tr>
+<tr><td>OneDrive</td><td>Din personliga lagringsplats</td><td>Privata utkast och filer som bara du behöver</td></tr>
+</tbody></table></div>
+<p>Samma fil kan nås på tre sätt: i webbläsaren, via fliken Filer i Teams och som en synkad mapp i Utforskaren eller Finder. Det är tre ingångar till samma hus, inte tre olika hus.</p>
+<p>En tumregel: filer som fler ska nå hör hemma i SharePoint eller ett team. Filer som bara du arbetar med hör hemma i OneDrive tills de är redo att delas.</p>
+</article>
+
+<article class="chapter" data-ch="3" hidden>
+<h2>3. Huset uppifrån och ner</h2>
+<p class="kv"><b>Kort version</b>Allt ligger inuti något annat: organisation, hub site, site, bibliotek och fil. Nycklarna (behörigheterna) gäller på varje nivå.</p>
+<p>I SharePoint ligger allt inuti något annat: en fil i ett bibliotek, ett bibliotek på en site och en site i organisationen. Behörigheterna följer med genom alla nivåerna.</p>
+<div class="dg">
+<svg viewBox="0 0 640 380" role="img" aria-label="Allt ligger inuti något annat, och nycklarna gäller på varje nivå. Fem nivåer från organisation till fil, med behörigheter som gäller på alla nivåer.">
+<defs><marker id="dg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="dg-ah" d="M0 0L10 5L0 10z"/></marker></defs>
+<path class="dg-l" d="M320 28H380M320 108H380M320 188H380M320 268H380M320 348H380"/>
+<path class="dg-a" d="M160 56V80" marker-end="url(#dg-arrow)"/>
+<path class="dg-a" d="M160 136V160" marker-end="url(#dg-arrow)"/>
+<path class="dg-a" d="M160 216V240" marker-end="url(#dg-arrow)"/>
+<path class="dg-a" d="M160 296V320" marker-end="url(#dg-arrow)"/>
+<rect class="dg-box" x="0" y="0" width="320" height="56" rx="6"/>
+<text class="dg-n" x="16" y="24">Microsoft 365-organisation (tenant)</text><text class="dg-b" x="16" y="43">Hela huset</text>
+<rect class="dg-box" x="0" y="80" width="320" height="56" rx="6"/>
+<text class="dg-n" x="16" y="104">Hub site</text><text class="dg-b" x="16" y="123">Ett våningsplan som binder ihop flera rum</text>
+<rect class="dg-box" x="0" y="160" width="320" height="56" rx="6"/>
+<text class="dg-n" x="16" y="184">Site (till exempel ett team)</text><text class="dg-b" x="16" y="203">Ett rum med egna nycklar</text>
+<rect class="dg-box" x="0" y="240" width="320" height="56" rx="6"/>
+<text class="dg-n" x="16" y="264">Dokumentbibliotek eller lista</text><text class="dg-b" x="16" y="283">Skåpet eller byrån i rummet</text>
+<rect class="dg-box" x="0" y="320" width="320" height="56" rx="6"/>
+<text class="dg-n" x="16" y="344">Fil med metadata</text><text class="dg-b" x="16" y="363">Pärmen med etikett på ryggen</text>
+<rect class="dg-perm" x="380" y="0" width="260" height="376" rx="6"/>
+<text class="dg-pn" x="510" y="178" text-anchor="middle">Behörigheter</text>
+<text class="dg-p" x="510" y="200" text-anchor="middle">Nycklarna gäller på varje nivå</text>
+<text class="dg-p" x="510" y="218" text-anchor="middle">De ärvs nedåt tills någon bryter arvet</text>
+</svg>
+</div>
+<p>Läs bilden uppifrån och ner, där varje nivå ligger inuti den ovanför. Teams är en ingång till nivån Site. En hub site används när flera sites ska hänga ihop, till exempel för en hel avdelning.</p>
+</article>
+
+<article class="chapter" data-ch="4" hidden>
+<h2>4. Etiketterna: metadata, kolumner och vyer</h2>
+<p class="kv"><b>Kort version</b>Sätt etiketter (kolumner) på filerna i stället för att gömma dem i mappar. Då kan du visa samma filer på många sätt med vyer.</p>
+<p>I SharePoint beskriver du en fil med etiketter i stället för att gömma informationen i mappnamn, och då kan samma filer visas på många olika sätt. Etiketterna kallas metadata och skapas som kolumner i biblioteket.</p>
+<p>En fil kan bara ligga i en mapp, men den kan ha många etiketter. Om en ritning har kolumnerna Fastighet, Dokumenttyp och Status kan du hitta den via vilken som helst av dem, utan att veta var den "ligger".</p>
+<ul>
+<li>Kolumn: en etikett som du fyller i för varje fil, till exempel Status eller Ansvarig.</li>
+<li>Vy: ett sparat sätt att titta på samma filer, filtrerat, sorterat eller grupperat. Samma bibliotek kan ha många vyer.</li>
+<li>Innehållstyp: låter olika sorters dokument ha olika uppsättning kolumner i samma bibliotek.</li>
+</ul>
+<p>Tre råd som sparar mycket besvär senare:</p>
+<ol>
+<li>Använd val-kolumner (rullista) i stället för fri text, annars stavas samma sak på fem olika sätt.</li>
+<li>Börja med få kolumner. Det är lätt att lägga till fler men svårt att få folk att fylla i dem.</li>
+<li>Använd mappar sparsamt och bara när de verkligen hjälper, till exempel för att dela upp på år.</li>
+</ol>
+<p>När samma uppsättning värden ska användas på flera sites finns hanterade metadata (term store) i administrationscentret. Det hör till förvaltarens verktyg och tas upp i kapitel 7.</p>
+</article>
+
+<article class="chapter" data-ch="5" hidden>
+<h2>5. Nycklarna: behörigheter</h2>
+<p class="kv"><b>Kort version</b>Ge nycklar till grupper, inte till personer. Bryt arvet sällan och ha minst två ägare per site.</p>
+<p>Behörigheter styr vem som kan se och göra vad, och de ärvs nedåt från siten till biblioteket, mappen och filen så länge ingen bryter arvet. Har du ordning på nycklarna slipper du det mesta av felsökningen senare.</p>
+<p>En modern teamsite har tre standardgrupper:</p>
+<div class="tw"><table>
+<thead><tr><th>Grupp</th><th>Behörighetsnivå</th><th>Kan göra</th></tr></thead>
+<tbody>
+<tr><td>Ägare</td><td>Fullständig kontroll</td><td>Allt i siten, inklusive behörigheter och inställningar</td></tr>
+<tr><td>Medlemmar</td><td>Redigera</td><td>Lägga till, ändra och ta bort innehåll</td></tr>
+<tr><td>Besökare</td><td>Läsa</td><td>Se och ladda ner innehåll</td></tr>
+</tbody></table></div>
+<p>Grundregler:</p>
+<ul>
+<li>Ge behörighet till grupper, inte till enskilda personer. Då räcker det att ändra gruppen när någon byter roll.</li>
+<li>Bryt arvet (unika behörigheter) sällan. Varje avbrott är en nyckel du måste hålla reda på, och de blir snabbt svåröverskådliga. Behövs en helt annan målgrupp är en egen site ofta enklare.</li>
+<li>Se delning som att lämna ut en nyckel. Länkar kan gälla alla i organisationen, bara personer som redan har åtkomst eller specifika personer, och det sista är oftast tryggast.</li>
+<li>Ha alltid minst två ägare per site, så att ingen blir en flaskhals eller lämnar sitet utan ansvarig.</li>
+</ul>
+</article>
+
+<article class="chapter" data-ch="6" hidden>
+<h2>6. Teams och SharePoint</h2>
+<p class="kv"><b>Kort version</b>Bakom varje team finns en SharePoint-site. Hantera medlemmar i Teams och rör inte kanalmappar direkt i SharePoint.</p>
+<p>Varje team i Teams har en SharePoint-site bakom sig, så filerna du ser i Teams ligger i själva verket i SharePoint. Teams är dörren in till rummet, inte ett eget rum.</p>
+<ul>
+<li>Fliken Filer i en kanal visar en mapp i teamets dokumentbibliotek på siten.</li>
+<li>Privata kanaler och delade kanaler får en egen site, så deras filer syns inte i teamets huvudsite.</li>
+<li>Filer du skickar i en chatt sparas inte i teamets site utan i OneDrive.</li>
+</ul>
+<p>Vanliga fällor:</p>
+<ol>
+<li>Att ta bort eller flytta en kanals mapp direkt i SharePoint kan få fliken Filer i Teams att sluta fungera. Gör ändringar i Teams när det går.</li>
+<li>Medlemskap hanteras bäst i Teams, inte i SharePoint-grupperna bakom, annars glider de två isär och ingen vet vem som har åtkomst.</li>
+<li>Ett team växer lätt till hundratals filer utan struktur. Lägg in kolumner och vyer (kapitel 4) tidigt, innan det blir en hög.</li>
+<li>När ett team inte längre behövs ligger siten kvar. Någon måste avgöra vad som ska arkiveras eller tas bort, och det är en förvaltaruppgift (kapitel 7).</li>
+</ol>
+</article>
+
+<article class="chapter" data-ch="7" hidden>
+<h2>7. Förvaltarens roll</h2>
+<p class="kv"><b>Kort version</b>Förvaltaren håller ordning på struktur, nycklar och livscykel. Felsök i tur och ordning: vyns filter, behörighet, papperskorg.</p>
+<p>En systemförvaltare ansvarar för att strukturen är begriplig, att rätt personer har rätt nycklar och att huset hålls i ordning över tid. Det handlar mindre om att kunna alla knappar och mer om att kunna svara på tre frågor för varje del: vad är det här, vem ska ha nyckel, och vad händer om det blir fel?</p>
+<p>Verktygen finns i administrationscentren för SharePoint, Microsoft 365 och Teams. Vilken administratörsroll som förvaltaren får bestäms av IT och säkerhet, så ta den dialogen tidigt.</p>
+<div class="tw"><table>
+<thead><tr><th>Ansvarsområde</th><th>Vad det innebär</th></tr></thead>
+<tbody>
+<tr><td>Struktur</td><td>Hur sites, hub sites och bibliotek byggs upp, namnregler, mallar och gemensamma metadata (term store)</td></tr>
+<tr><td>Behörigheter och delning</td><td>Vilka som får dela utanför organisationen, regelbunden översyn av vem som har åtkomst</td></tr>
+<tr><td>Livscykel</td><td>Vad som händer med sites som inte används, med ägare, arkivering och borttagning</td></tr>
+<tr><td>Lagring</td><td>Håll koll på utrymme, eftersom stora filer och långa versionshistoriker tar plats</td></tr>
+<tr><td>Styrning och utbildning</td><td>Skriv ner reglerna, utse ägare till varje site och lär användarna hur huset fungerar</td></tr>
+</tbody></table></div>
+<p>Felsökning är en stor del av vardagen. Börja med att kontrollera de vanligaste orsakerna:</p>
+<div class="tw"><table>
+<thead><tr><th>Symptom</th><th>Kolla först</th></tr></thead>
+<tbody>
+<tr><td>"Jag hittar inte filen"</td><td>Vyns filter, att du står i rätt site och bibliotek, papperskorgen</td></tr>
+<tr><td>"Åtkomst nekad"</td><td>Vilken grupp personen tillhör och om arvet har brutits på mappen eller filen</td></tr>
+<tr><td>"Synken fungerar inte"</td><td>Synkklienten, filnamn med otillåtna tecken, för långa sökvägar</td></tr>
+<tr><td>"Filen försvann från Teams"</td><td>Om kanalmappen flyttats eller tagits bort i SharePoint</td></tr>
+</tbody></table></div>
+<p>Raderat innehåll hamnar först i papperskorgen och kan återställas därifrån i upp till 93 dagar. Det gör att många "försvunna" filer går att få tillbaka.</p>
+</article>
+
+<article class="chapter" data-ch="8" hidden>
+<h2>8. Övningar, checklistor och ordlista</h2>
+<p class="kv"><b>Kort version</b>Gör övningarna i en testsite, en etapp i taget. Använd checklistan och ordlistan som uppslagsbok.</p>
+<p>Kunskapen sätter sig när du gör själv. Gör övningarna i en testsite där inget kan gå fel, och avsluta varje etapp med att förklara den för någon annan med en egen skiss.</p>
+<h3>Etapp 1: Hitta i huset</h3>
+<ul class="chk">
+<li><label><input type="checkbox" data-k="e1-1"><span>Hitta tre filer du ofta använder och ta reda på vilken site och vilket bibliotek de ligger i</span></label></li>
+<li><label><input type="checkbox" data-k="e1-2"><span>Dela en testfil med en kollega via "Specifika personer" och kontrollera vilken åtkomst hen fick</span></label></li>
+<li><label><input type="checkbox" data-k="e1-3"><span>Öppna versionshistoriken på en testfil och återställ en tidigare version</span></label></li>
+</ul>
+<h3>Etapp 2: Jobba i ett rum</h3>
+<ul class="chk">
+<li><label><input type="checkbox" data-k="e2-1"><span>Lägg till en val-kolumn (till exempel Status) i ett testbibliotek och fyll i den på fem filer</span></label></li>
+<li><label><input type="checkbox" data-k="e2-2"><span>Skapa en vy som bara visar filer med ett visst Status, sorterade på senast ändrad</span></label></li>
+<li><label><input type="checkbox" data-k="e2-3"><span>Rita en skiss över hur ett team i Teams hänger ihop med sin site</span></label></li>
+</ul>
+<h3>Etapp 3: Ansvara för ett rum</h3>
+<ul class="chk">
+<li><label><input type="checkbox" data-k="e3-1"><span>Skapa en testsite och lägg till en kollega som medlem och en som besökare</span></label></li>
+<li><label><input type="checkbox" data-k="e3-2"><span>Bryt arvet på en testmapp, se vad som händer med behörigheterna och återställ arvet</span></label></li>
+<li><label><input type="checkbox" data-k="e3-3"><span>Förklara för en kollega vad som händer med filerna när en privat kanal skapas i ett team</span></label></li>
+</ul>
+<h3>Etapp 4: Ansvara för huset</h3>
+<ul class="chk">
+<li><label><input type="checkbox" data-k="e4-1"><span>Gå igenom organisationens delningsinställningar i SharePoints administrationscenter (kräver administratörsbehörighet, annars tillsammans med någon som har den)</span></label></li>
+<li><label><input type="checkbox" data-k="e4-2"><span>Välj en site som inte används och föreslå vad som ska hända med den</span></label></li>
+<li><label><input type="checkbox" data-k="e4-3"><span>Skriv ner tre regler för hur nya sites ska byggas och namnges</span></label></li>
+</ul>
+<h3>Förvaltarens checklista</h3>
+<ul class="chk">
+<li><label><input type="checkbox" data-k="c-1"><span>Varje site har minst två ägare</span></label></li>
+<li><label><input type="checkbox" data-k="c-2"><span>Behörigheter ges till grupper, inte till enskilda personer</span></label></li>
+<li><label><input type="checkbox" data-k="c-3"><span>Reglerna för extern delning är dokumenterade</span></label></li>
+<li><label><input type="checkbox" data-k="c-4"><span>Sites som inte används granskas regelbundet</span></label></li>
+<li><label><input type="checkbox" data-k="c-5"><span>Nya sites byggs efter samma mall och namnregler</span></label></li>
+</ul>
+<h3>Ordlista</h3>
+<div class="tw"><table>
+<thead><tr><th>Begrepp</th><th>Förklaring</th></tr></thead>
+<tbody>
+<tr><td>Tenant</td><td>Organisationens egen Microsoft 365-miljö, hela huset</td></tr>
+<tr><td>Site</td><td>Ett avgränsat område med egna bibliotek, sidor och behörigheter</td></tr>
+<tr><td>Hub site</td><td>En site som binder ihop flera sites med gemensam navigering och sökning</td></tr>
+<tr><td>Dokumentbibliotek</td><td>Platsen på en site där filer lagras</td></tr>
+<tr><td>Lista</td><td>Strukturerad information i rader och kolumner, utan filer som huvudsak</td></tr>
+<tr><td>Metadata</td><td>Information om en fil, till exempel typ, status och ansvarig</td></tr>
+<tr><td>Kolumn</td><td>Ett fält som lagrar en sorts metadata</td></tr>
+<tr><td>Vy</td><td>Ett sparat sätt att filtrera, sortera och gruppera innehåll</td></tr>
+<tr><td>Innehållstyp</td><td>En mall som bestämmer vilka kolumner en sorts dokument har</td></tr>
+<tr><td>Arv</td><td>Att en behörighet gäller nedåt tills någon bryter den</td></tr>
+<tr><td>Microsoft 365-grupp</td><td>Gruppen bakom ett team, som styr medlemskap och åtkomst</td></tr>
+</tbody></table></div>
+</article>
+
+<div id="read-foot"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var SLOTS=[
+  {id:'org', house:'Hela huset', term:'Microsoft 365-organisation (tenant)'},
+  {id:'hub', house:'Ett våningsplan', term:'Hub site'},
+  {id:'site',house:'Ett rum', term:'Site'},
+  {id:'lib', house:'Skåp eller byrå', term:'Dokumentbibliotek'},
+  {id:'file',house:'Pärm med etikett på ryggen', term:'Fil med metadata'}
+];
+
+var R_GRUNDER={kind:'sort', ch:2, name:'Vad hör hemma var?',
+  intro:'SharePoint, Teams och OneDrive är tre olika ställen. Sortera exemplen där de hör hemma.',
+  cap:'SharePoint är huset där filerna ligger. Teams är dörren in, och OneDrive är ditt eget skrivbord.',
+  review:'kapitel 2, grunderna',
+  takeaway:'SharePoint är huset där filerna ligger. Teams är dörren in, och OneDrive är ditt eget skrivbord.',
+  buckets:[
+    {id:'sp',name:'SharePoint',sub:'Huset där filerna ligger'},
+    {id:'tm',name:'Teams',sub:'Dörren in till rummet'},
+    {id:'od',name:'OneDrive',sub:'Ditt eget skrivbord'}
+  ],
+  cards:[
+    {id:'g6',text:'Ett privat utkast som bara du ska se',slot:'od',hint:'Privata filer hör hemma på ditt eget skrivbord tills de är redo att delas.'},
+    {id:'g1',text:'Intranätet med företagets nyheter och information',slot:'sp',hint:'Information som många ska nå och som publiceras gemensamt hör hemma i huset, alltså SharePoint.'},
+    {id:'g4',text:'Chatt och möten med teamet',slot:'tm',hint:'Det är samarbetet i vardagen, och det sker i Teams.'},
+    {id:'g8',text:'Din personliga lagringsplats',slot:'od',hint:'Det är OneDrive, ditt eget skrivbord.'},
+    {id:'g2',text:'Platsen där ett teams filer faktiskt lagras',slot:'sp',hint:'Bakom varje team finns en SharePoint-site. Filerna ligger i huset, inte i dörren.'},
+    {id:'g7',text:'Filer du skickar i en chatt',slot:'od',hint:'Filer från en chatt sparas inte i teamets site utan i OneDrive.'},
+    {id:'g5',text:'Det dagliga arbetet i ett team',slot:'tm',hint:'Teams är dörren in till det gemensamma arbetet.'},
+    {id:'g3',text:'Ett bibliotek med versionshistorik och kolumner',slot:'sp',hint:'Bibliotek, versioner och kolumner är SharePoint, själva huset.'}
+  ]};
+
+var R_NAMN={kind:'place', ch:3, name:'Vad heter det?', showTerm:false, examples:false,
+  intro:'Varje del av huset har ett namn i SharePoint. Placera begreppen där de hör hemma.',
+  review:'kapitel 3, huset uppifrån och ner',
+  takeaway:'Allt ligger inuti något annat: organisationen, hub site, site, bibliotek och fil.',
+  cards:[
+    {id:'a',text:'Fil med metadata',slot:'file',hint:'Metadata är etiketten på pärmryggen. Det här är det innersta du kan placera.'},
+    {id:'b',text:'Site',slot:'site',hint:'Här har ett team sina egna dokument, medlemmar och nycklar, ungefär som ett eget rum.'},
+    {id:'c',text:'Microsoft 365-organisation (tenant)',slot:'org',hint:'Det här är det yttersta lagret, och allt annat ligger inuti det.'},
+    {id:'d',text:'Dokumentbibliotek',slot:'lib',hint:'Här lagras filerna samlat och i ordning, som i ett skåp eller en byrå.'},
+    {id:'e',text:'Hub site',slot:'hub',hint:'Den binder ihop flera rum, ungefär som ett våningsplan.'}
+  ]};
+
+var R_EXEMPEL={kind:'place', ch:3, name:'Var hör det hemma?', showTerm:true, examples:true,
+  intro:'Nu är det verkliga exempel. Placera dem på rätt nivå i huset.',
+  review:'kapitel 2 och 3, grunderna och huset',
+  takeaway:'Ett team är en site, filerna ligger i bibliotek och etiketterna gör dem lätta att hitta.',
+  cards:[
+    {id:'f',text:'En ritning märkt Status: Godkänd',slot:'file',hint:'Det är en enskild fil med en etikett på ryggen.'},
+    {id:'g',text:'Teamet Ekonomi i Teams',slot:'site',hint:'Bakom varje team finns en site, alltså ett eget rum.'},
+    {id:'h',text:'Biblioteket där ett projekts ritningar lagras',slot:'lib',hint:'Det är en plats för många filer på samma ställe, ett skåp i rummet.'},
+    {id:'i',text:'Hela företagets Microsoft 365',slot:'org',hint:'Det som omfattar allt, alltså hela huset.'},
+    {id:'j',text:'Avdelningens sites med gemensam navigering',slot:'hub',hint:'Flera rum som hänger ihop på samma plan.'}
+  ]};
+
+var R_ETIKETT_Q={kind:'quiz', ch:4, name:'Vad är vad?', unit:'rätta svar',
+  intro:'Etiketterna på pärmryggarna gör att du hittar rätt utan att öppna skåpen. Hur väl kan du dem?',
+  cap:'Etiketterna på pärmryggarna gör att du hittar rätt utan att öppna skåpen.',
+  review:'kapitel 4, etiketterna',
+  takeaway:'Metadata beskriver filerna, kolumnerna är etiketterna och vyerna är olika sätt att titta på samma filer.',
+  questions:[
+    {q:'Vad är metadata?',
+     o:['Filens innehåll','Namnet på mappen','Information om en fil, till exempel typ, status och ansvarig'], a:2,
+     why:'Metadata är etiketten på pärmryggen. Den beskriver filen utan att du behöver öppna den.'},
+    {q:'Vad är en vy?',
+     o:['En kopia av biblioteket','Ett sparat sätt att filtrera, sortera och gruppera samma filer','En mapp med färre filer'], a:1,
+     why:'Samma filer kan visas på många sätt utan att flyttas.'},
+    {q:'Varför är en val-kolumn (rullista) bättre än fri text?',
+     o:['Då stavas samma sak likadant varje gång','Den tar mindre plats','Den går att lägga till senare'], a:0,
+     why:'Med fri text stavas samma sak på fem olika sätt, och då fungerar filter och sökning sämre.'},
+    {q:'Vad gör en innehållstyp?',
+     o:['Bestämmer filens format','Styr vem som får öppna filen','Låter olika sorters dokument ha olika kolumner i samma bibliotek'], a:2,
+     why:'Med innehållstyper kan till exempel ritningar och avtal ha olika etiketter i samma skåp.'},
+    {q:'Varför räcker det inte med mappar?',
+     o:['Mappar går inte att skapa i SharePoint','En fil kan bara ligga i en mapp, men kan ha många etiketter','Mappar tar mycket lagringsutrymme'], a:1,
+     why:'Med etiketter hittar du filen på flera sätt, och du slipper bygga om mappstrukturen när behoven ändras.'}
+  ]};
+
+var R_ETIKETT_S={kind:'sort', ch:4, name:'Kolumn, vy eller mapp?',
+  intro:'Nu ska du välja rätt verktyg. Sortera exemplen i kolumn, vy eller mapp.',
+  cap:'Kolumnerna är etiketterna, vyerna är sätten att titta, och mapparna är enkla fack.',
+  review:'kapitel 4, etiketterna',
+  takeaway:'Kolumnerna är etiketterna, vyerna är sätten att titta, och mappar räcker sällan ensamma.',
+  buckets:[
+    {id:'kol',name:'Kolumn',sub:'En etikett du fyller i för varje fil'},
+    {id:'vy',name:'Vy',sub:'Ett sparat sätt att titta på filerna'},
+    {id:'map',name:'Mapp',sub:'Enkel uppdelning som sällan ändras'}
+  ],
+  cards:[
+    {id:'k4',text:'Bara filer med status Godkänd, sorterade på datum',slot:'vy',hint:'Det är ett sätt att titta på samma filer och ändrar ingenting i dem. Alltså en vy.'},
+    {id:'k1',text:'Status: Godkänd eller Utkast',slot:'kol',hint:'Det är något du fyller i för varje fil, alltså en etikett.'},
+    {id:'k7',text:'Ett år, till exempel 2026',slot:'map',hint:'En enkel tidsuppdelning som sällan ändras passar en mapp.'},
+    {id:'k6',text:'Bara de dokument jag själv ansvarar för',slot:'vy',hint:'Ett filter på samma filer är en vy.'},
+    {id:'k2',text:'Vilken fastighet ritningen tillhör',slot:'kol',hint:'Det är en uppgift om filen som du fyller i, alltså en kolumn.'},
+    {id:'k8',text:'Ett kvartal, till exempel kvartal 1',slot:'map',hint:'En enkel tidsuppdelning som sällan ändras passar en mapp.'},
+    {id:'k5',text:'Alla ritningar grupperade per fastighet',slot:'vy',hint:'Grupperingen ändrar bara hur filerna visas, så det är en vy.'},
+    {id:'k3',text:'Vem som ansvarar för dokumentet',slot:'kol',hint:'Ansvarig är metadata du sätter på filen, alltså en kolumn.'}
+  ]};
+
+var R_NYCKLAR={kind:'quiz', ch:5, name:'Nyckelknippan', unit:'nycklar',
+  intro:'Huset står klart. Nu ska nycklarna delas ut rätt.',
+  cap:'Huset är byggt. Dörren är Teams, nycklarna är behörigheterna.',
+  review:'kapitel 5, nycklarna',
+  takeaway:'Ge nycklar till grupper, ha minst två ägare per site och bryt arvet sällan.',
+  questions:[
+    {q:'Kalle ska kunna läsa och ladda ner filer men inte ändra något. Vilken grupp ska han tillhöra?',
+     o:['Ägare','Medlemmar','Besökare'], a:2,
+     why:'Besökare har behörigheten Läsa. Medlemmar kan redigera och ägare har full kontroll.'},
+    {q:'Fem kollegor behöver samma åtkomst. Hur delar du ut nycklarna?',
+     o:['En och en, till var och en','Via en grupp','Genom att skicka länken till alla'], a:1,
+     why:'Ge behörighet till grupper. Då räcker det att ändra gruppen när någon byter roll.'},
+    {q:'Du ska dela en fil med en enda kollega. Vilken länk är tryggast?',
+     o:['Alla i organisationen','Specifika personer','Alla som har länken'], a:1,
+     why:'Länken för specifika personer fungerar bara för dem du valt. De andra öppnar dörren för fler än du tänkt.'},
+    {q:'Du har inte ändrat något på en mapp. Vilka nycklar gäller för den?',
+     o:['De som gäller på nivån ovanför','Ingen kan öppna den','Bara dina egna'], a:0,
+     why:'Behörigheter ärvs nedåt tills någon bryter arvet.'},
+    {q:'Siten har bara en ägare, och hen slutar. Vad borde ni ha gjort?',
+     o:['Haft minst två ägare','Brutit arvet på alla mappar','Flyttat filerna till OneDrive'], a:0,
+     why:'Ha minst två ägare per site, så att någon alltid kan hantera nycklarna.'}
+  ]};
+
+var ETAPPER=[
+  {name:'Hitta i huset', sub:'Användare', ch:'kapitel 2–3', rounds:[R_GRUNDER,R_NAMN,R_EXEMPEL]},
+  {name:'Jobba i ett rum', sub:'Aktiv användare', ch:'kapitel 4', rounds:[R_ETIKETT_Q,R_ETIKETT_S]},
+  {name:'Ansvara för ett rum', sub:'Ägare', ch:'kapitel 5', rounds:[R_NYCKLAR]},
+  {name:'Ansvara för huset', sub:'Förvaltare', ch:'kapitel 7', rounds:[], locked:true}
+];
+
+var RANKS=[
+  {min:0.9, name:'Fastighetsförvaltare',txt:'Full koll. Du kan förklara det här för någon annan med en egen skiss.'},
+  {min:0.7, name:'Husägare',txt:'Du har koll på det mesta. Repetera det du missade och spela etappen igen.'},
+  {min:0.47,name:'Hyresgäst',txt:'Du hittar rätt i huset. Läs om det du missade i kompendiet och försök igen.'},
+  {min:0,   name:'Besökare',txt:'Du har tittat in i huset. Gå igenom kompendiet och bygg det en gång till.'}
+];
+
+var state;
+function fresh(){
+  return {reading:false,readCh:1,screen:'start',etapp:0,round:0,score:0,roundScore:[],placed:{},wrong:{},sel:null,msg:'',warn:false,
+          q:0,qWrong:{},qDone:false,keys:0,roundDone:false,shake:null,pop:null};
+}
+function resetRound(){
+  state.placed={};state.wrong={};state.sel=null;state.msg='';state.warn=false;
+  state.q=0;state.qWrong={};state.qDone=false;state.keys=0;state.roundDone=false;state.shake=null;state.pop=null;
+}
+var $=function(s,r){return (r||document).querySelector(s);};
+function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function pts(wrongCount){return wrongCount===0?10:(wrongCount===1?5:2);}
+function curEtapp(){return ETAPPER[state.etapp];}
+function curRound(){return curEtapp().rounds[state.round];}
+function roundMax(r){return (r.kind==='quiz'?r.questions.length:r.cards.length)*10;}
+function etappMax(e){var m=0;e.rounds.forEach(function(r){m+=roundMax(r);});return m;}
+function findCard(r,id){for(var i=0;i<r.cards.length;i++){if(r.cards[i].id===id)return r.cards[i];}return null;}
+function isPlacedInSlot(id){return Object.keys(state.placed).some(function(k){return state.placed[k]===id;});}
+function focusSel(sel){var el=$(sel);if(el&&el.focus)el.focus();}
+function firstFocus(){return curRound().kind==='quiz'?'.opt':'.card';}
+function bestOf(i){
+  try{var v=parseInt(localStorage.getItem('bygg-huset-best-'+(i+1)),10);return isNaN(v)?null:v;}catch(e){return null;}
+}
+function saveBest(){
+  try{
+    var prev=bestOf(state.etapp);
+    if(prev===null||state.score>prev)localStorage.setItem('bygg-huset-best-'+(state.etapp+1),String(state.score));
+  }catch(e){}
+}
+
+function houseSvg(all){
+  var on=all?' on':'';
+  return '<svg viewBox="0 0 320 300" role="img" aria-label="Genomskärning av ett hus med ett våningsplan, ett rum, ett skåp och en pärm">'+
+    '<polygon class="roof'+on+'" points="26,102 160,22 294,102"/>'+
+    '<rect class="layer L1'+on+'" x="40" y="100" width="240" height="180" rx="3"/>'+
+    '<rect class="layer L2'+on+'" x="52" y="112" width="172" height="156" rx="3"/>'+
+    '<rect class="layer L3'+on+'" x="64" y="128" width="148" height="128" rx="3"/>'+
+    '<rect class="layer L4'+on+'" x="78" y="148" width="96" height="94" rx="3"/>'+
+    '<rect class="layer L5'+on+'" x="90" y="168" width="30" height="62" rx="2"/>'+
+    '<rect class="win" x="238" y="126" width="30" height="30" rx="2"/>'+
+    '<path class="win" d="M253 126v30M238 141h30"/>'+
+    '<rect class="door" x="238" y="218" width="30" height="62" rx="2"/>'+
+    '<circle class="knob" cx="262" cy="250" r="2.6"/>'+
+  '</svg>';
+}
+function paintHouse(){
+  var r=curRound();
+  var all=r.kind!=='place';
+  SLOTS.forEach(function(s,i){
+    var el=$('#house-game .L'+(i+1));
+    if(el)el.classList.toggle('on',all||!!state.placed[s.id]);
+  });
+  var roof=$('#house-game .roof');
+  if(roof)roof.classList.toggle('on',all||!!state.placed.org);
+}
+
+function renderHeader(){
+  var p=$('#rounds');
+  var inGame=state.screen==='game'||state.screen==='end';
+  p.hidden=!inGame;
+  $('#score').textContent=inGame?('Poäng '+state.score):'';
+  if(!inGame)return;
+  var e=curEtapp();var h='';
+  for(var i=0;i<e.rounds.length;i++){
+    var cls=(i<state.round||state.screen==='end')?'done':(i===state.round?'cur':'');
+    h+='<span class="seg '+cls+'"></span>';
+  }
+  var lbl=state.screen==='end'?('Etapp '+(state.etapp+1)):('Etapp '+(state.etapp+1)+' · Runda '+(state.round+1)+' av '+e.rounds.length);
+  p.innerHTML=h+'<span class="lbl">'+lbl+'</span>';
+}
+
+function renderStart(){
+  $('#etapper').innerHTML=ETAPPER.map(function(e,i){
+    var best=bestOf(i);var max=etappMax(e);
+    var info=e.locked?'Byggs senare':(e.rounds.length+(e.rounds.length===1?' runda':' rundor')+(best!==null?' · bäst '+best+' av '+max:''));
+    return '<button type="button" class="etapp'+(e.locked?' locked':'')+'" data-act="etapp" data-etapp="'+i+'"'+(e.locked?' disabled':'')+'>'+
+      '<span class="n">'+(i+1)+'</span>'+
+      '<span class="t">'+esc(e.name)+'<span class="s">'+esc(e.sub)+' · '+esc(e.ch)+' i kompendiet</span></span>'+
+      '<span class="b">'+esc(info)+'</span></button>';
+  }).join('');
+}
+
+function panelHtml(r,isLast){
+  return '<div class="panel"><h3>Runda '+(state.round+1)+' klar: '+state.roundScore[state.round]+' av '+roundMax(r)+' poäng</h3>'+
+    '<p>'+esc(r.takeaway)+'</p>'+
+    '<button type="button" class="btn" id="btn-next" data-act="next">'+(isLast?'Se resultatet':'Nästa runda')+'</button></div>';
+}
+function isLastRound(){return state.round+1>=curEtapp().rounds.length;}
+
+function renderPlace(r){
+  var remaining=r.cards.filter(function(c){return !isPlacedInSlot(c.id);});
+  var slots=SLOTS.map(function(s,i){
+    var cid=state.placed[s.id];
+    var card=cid?findCard(r,cid):null;
+    var term=(r.showTerm||card)?s.term:'Tom plats';
+    var cls='slot'+(card?' filled':'')+(state.shake===s.id?' shake':'')+(state.pop===s.id?' pop':'');
+    var h='<button type="button" class="'+cls+'" data-act="slot" data-slot="'+s.id+'" style="--d:'+i+'"'+(card?' disabled':'')+'>';
+    h+='<span class="house">'+esc(s.house)+'</span>';
+    h+='<span class="term">'+esc(term)+'</span>';
+    if(card&&r.examples)h+='<span class="placed">'+esc(card.text)+'</span>';
+    return h+'</button>';
+  }).join('');
+  var lower;
+  if(remaining.length===0){
+    lower=panelHtml(r,isLastRound());
+  }else{
+    lower='<div class="tray">'+remaining.map(function(c){
+      return '<button type="button" class="card'+(r.examples?'':' mono')+(state.sel===c.id?' sel':'')+'" data-act="card" data-card="'+c.id+'" aria-pressed="'+(state.sel===c.id)+'">'+esc(c.text)+'</button>';
+    }).join('')+'</div><p class="msg" id="msg" role="status" aria-live="polite"></p>';
+  }
+  $('#play').innerHTML='<div class="slots">'+slots+'</div>'+lower;
+  finishMsg();
+}
+
+function renderSort(r){
+  var remaining=r.cards.filter(function(c){return !state.placed[c.id];});
+  var buckets=r.buckets.map(function(b){
+    var items=r.cards.filter(function(c){return state.placed[c.id]===b.id;}).map(function(c){
+      return '<span class="it">'+esc(c.text)+'</span>';
+    }).join('');
+    var cls='bucket'+(state.shake===b.id?' shake':'')+(state.pop===b.id?' pop':'');
+    return '<button type="button" class="'+cls+'" data-act="bucket" data-bucket="'+b.id+'">'+
+      '<span class="bn">'+esc(b.name)+'</span><span class="bs">'+esc(b.sub)+'</span><span class="items">'+items+'</span></button>';
+  }).join('');
+  var lower;
+  if(remaining.length===0){
+    lower=panelHtml(r,isLastRound());
+  }else{
+    lower='<div class="tray">'+remaining.map(function(c){
+      return '<button type="button" class="card'+(state.sel===c.id?' sel':'')+'" data-act="card" data-card="'+c.id+'" aria-pressed="'+(state.sel===c.id)+'">'+esc(c.text)+'</button>';
+    }).join('')+'</div><p class="msg" id="msg" role="status" aria-live="polite"></p>';
+  }
+  $('#play').innerHTML='<div class="buckets">'+buckets+'</div>'+lower;
+  finishMsg();
+}
+function finishMsg(){
+  var m=$('#msg');
+  if(m){m.textContent=state.msg;m.classList.toggle('warn',state.warn);}
+  state.shake=null;state.pop=null;
+}
+
+function renderQuiz(r){
+  if(state.roundDone){
+    $('#play').innerHTML=panelHtml(r,isLastRound());
+    return;
+  }
+  var qd=r.questions[state.q];
+  var wrongN=Object.keys(state.qWrong).length;
+  var keys='';
+  for(var i=0;i<r.questions.length;i++)keys+='<span class="key'+(i<state.keys?' on':'')+'"></span>';
+  var opts=qd.o.map(function(t,i){
+    var cls='opt';var dis='';
+    if(state.qWrong[i]){cls+=' wrong';dis=' disabled';}
+    if(state.qDone){dis=' disabled';if(i===qd.a)cls+=' right';}
+    return '<button type="button" class="'+cls+'" data-act="opt" data-i="'+i+'"'+dis+'>'+esc(t)+'</button>';
+  }).join('');
+  var fb;
+  if(state.qDone){
+    fb='<p class="fb" role="status">Rätt. '+esc(qd.why)+'</p>'+
+      '<button type="button" class="btn" id="btn-nextq" data-act="nextq">'+(state.q+1<r.questions.length?'Nästa fråga':'Avsluta runden')+'</button>';
+  }else if(wrongN>0){
+    fb='<p class="fb no" role="status">Inte riktigt. Försök igen.</p>';
+  }else{
+    fb='<p class="fb" role="status"></p>';
+  }
+  $('#play').innerHTML=
+    '<div class="keys" aria-label="Framsteg">'+keys+'<span class="klbl">'+state.keys+' av '+r.questions.length+' '+esc(r.unit)+'</span></div>'+
+    '<h3 class="q">'+esc(qd.q)+'</h3><div class="opts">'+opts+'</div>'+fb;
+}
+
+function renderGame(){
+  var r=curRound();
+  $('#round-kicker').textContent='Etapp '+(state.etapp+1)+' · Runda '+(state.round+1);
+  $('#round-title').textContent=r.name;
+  $('#round-intro').textContent=r.intro;
+  $('#house-cap').textContent=r.cap||'Varje plats du fyller i tänds i huset. Dörren är Teams.';
+  if(r.kind==='place')renderPlace(r);
+  else if(r.kind==='sort')renderSort(r);
+  else renderQuiz(r);
+  paintHouse();
+}
+
+function renderEnd(){
+  var e=curEtapp();var max=etappMax(e);var total=state.score;
+  var ratio=max>0?total/max:0;
+  var rank=RANKS[RANKS.length-1];
+  for(var i=0;i<RANKS.length;i++){if(ratio>=RANKS[i].min){rank=RANKS[i];break;}}
+  var best=bestOf(state.etapp);
+  var weakest=-1,low=1;
+  for(var j=0;j<e.rounds.length;j++){
+    var rt=state.roundScore[j]/roundMax(e.rounds[j]);
+    if(rt<low){low=rt;weakest=j;}
+  }
+  var rows=e.rounds.map(function(r,k){
+    return '<tr><td>'+esc(r.name)+'</td><td>'+state.roundScore[k]+' av '+roundMax(r)+'</td></tr>';
+  }).join('');
+  var nextIdx=state.etapp+1;
+  var hasNext=nextIdx<ETAPPER.length&&!ETAPPER[nextIdx].locked;
+  $('#screen-end').innerHTML=
+    '<p class="kicker">Etapp '+(state.etapp+1)+' klar: '+esc(e.name)+'</p>'+
+    '<h1 class="rank">'+esc(rank.name)+'</h1>'+
+    '<p class="big">'+total+' av '+max+' poäng'+((best!==null&&best>total)?' · bäst hittills '+best:'')+'</p>'+
+    '<p style="margin-top:14px;max-width:56ch">'+esc(rank.txt)+'</p>'+
+    '<table class="res"><thead><tr><th>Runda</th><th>Poäng</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    (weakest>=0&&low<1?'<p>Mest att repetera: '+esc(e.rounds[weakest].review)+'. <button type="button" class="klink" data-act="read" data-ch="'+e.rounds[weakest].ch+'">Öppna kapitlet</button></p>':'<p>Full pott i alla rundor. Ingenting att repetera.</p>')+
+    '<div class="btns">'+
+      (hasNext?'<button type="button" class="btn" id="btn-nextetapp" data-act="nextetapp">Nästa etapp: '+esc(ETAPPER[nextIdx].name)+'</button>':'')+
+      '<button type="button" class="btn ghost" id="btn-again" data-act="again">Spela etappen igen</button>'+
+      '<button type="button" class="btn ghost" data-act="menu">Välj etapp</button>'+
+    '</div>';
+}
+
+function render(){
+  renderHeader();
+  if(state.reading){
+    ['start','game','end'].forEach(function(n){$('#screen-'+n).hidden=true;});
+    $('#screen-read').hidden=false;
+    renderRead();
+    return;
+  }
+  $('#screen-read').hidden=true;
+  ['start','game','end'].forEach(function(n){$('#screen-'+n).hidden=state.screen!==n;});
+  if(state.screen==='start')renderStart();
+  if(state.screen==='game')renderGame();
+  if(state.screen==='end')renderEnd();
+}
+
+function startEtapp(i){
+  var e=ETAPPER[i];if(!e||e.locked)return;
+  state=fresh();state.screen='game';state.etapp=i;
+  state.roundScore=e.rounds.map(function(){return 0;});
+  resetRound();render();focusSel(firstFocus());
+}
+function pickCard(id){
+  var r=curRound();var c=findCard(r,id);if(!c)return;
+  if(state.sel===id){state.sel=null;state.msg='';state.warn=false;}
+  else{state.sel=id;state.msg='Valt: '+c.text+'. Tryck på platsen där det hör hemma.';state.warn=false;}
+  render();focusSel('[data-card="'+id+'"]');
+}
+function award(c){
+  var wr=state.wrong[c.id]||0;var p=pts(wr);
+  state.score+=p;state.roundScore[state.round]+=p;
+  return p;
+}
+function tryPlace(targetId,isSlot){
+  var r=curRound();
+  if(isSlot&&state.placed[targetId])return;
+  if(!state.sel){state.msg='Välj först ett kort nedanför.';state.warn=false;state.shake=targetId;render();focusSel('.card');return;}
+  var c=findCard(r,state.sel);
+  if(c.slot===targetId){
+    var p=award(c);
+    if(isSlot)state.placed[targetId]=c.id;else state.placed[c.id]=targetId;
+    state.sel=null;state.msg='Rätt! +'+p+' poäng.';state.warn=false;state.pop=targetId;
+    render();
+    if($('#btn-next'))focusSel('#btn-next');else focusSel('.card');
+  }else{
+    state.wrong[c.id]=(state.wrong[c.id]||0)+1;
+    state.msg='Inte där. '+c.hint;state.warn=true;state.shake=targetId;
+    render();focusSel('[data-card="'+c.id+'"]');
+  }
+}
+function answer(i){
+  var r=curRound();var qd=r.questions[state.q];
+  if(state.qDone)return;
+  if(i===qd.a){
+    var p=pts(Object.keys(state.qWrong).length);
+    state.score+=p;state.roundScore[state.round]+=p;state.keys++;state.qDone=true;
+    render();focusSel('#btn-nextq');
+  }else{
+    state.qWrong[i]=1;render();focusSel('.opt:not(:disabled)');
+  }
+}
+function nextQ(){
+  var r=curRound();
+  if(state.q+1<r.questions.length){
+    state.q++;state.qWrong={};state.qDone=false;render();focusSel('.opt');
+  }else{
+    state.roundDone=true;render();focusSel('#btn-next');
+  }
+}
+function nextRound(){
+  if(state.round+1<curEtapp().rounds.length){
+    state.round++;resetRound();render();focusSel(firstFocus());
+  }else{
+    saveBest();state.screen='end';render();focusSel('#btn-again');
+  }
+}
+
+var CH_TITLES=['1. Så läser du kompendiet','2. Grunderna','3. Huset uppifrån och ner','4. Etiketterna','5. Nycklarna','6. Teams och SharePoint','7. Förvaltarens roll','8. Övningar och ordlista'];
+var CH_ETAPP={2:0,3:0,4:1,5:2};
+function renderRead(){
+  var n=state.readCh;
+  Array.prototype.forEach.call(document.querySelectorAll('.chapter'),function(a){
+    a.hidden=(parseInt(a.getAttribute('data-ch'),10)!==n);
+  });
+  $('#toc').innerHTML=CH_TITLES.map(function(t,i){
+    var cur=(i+1===n);
+    return '<button type="button" class="toc-i'+(cur?' cur':'')+'" data-act="read" data-ch="'+(i+1)+'"'+(cur?' aria-current="true"':'')+'>'+esc(t)+'</button>';
+  }).join('');
+  var back=state.screen==='game'?'Tillbaka till spelet':(state.screen==='end'?'Tillbaka till resultatet':'Till startsidan');
+  $('#read-back').textContent='← '+back;
+  var foot='';
+  if(CH_ETAPP.hasOwnProperty(n)){
+    var ei=CH_ETAPP[n];
+    foot+='<div class="panel"><h3>Testa dig</h3><p>Etapp '+(ei+1)+', '+esc(ETAPPER[ei].name)+', tränar det du just läst.</p>'+
+      '<button type="button" class="btn" data-act="etapp" data-etapp="'+ei+'">Spela etapp '+(ei+1)+'</button></div>';
+  }else if(n===7){
+    foot+='<div class="panel"><p>Spelet för förvaltardelen byggs senare.</p></div>';
+  }
+  foot+='<div class="btns">'+
+    (n>1?'<button type="button" class="btn ghost" data-act="read" data-ch="'+(n-1)+'">Föregående kapitel</button>':'')+
+    (n<CH_TITLES.length?'<button type="button" class="btn ghost" data-act="read" data-ch="'+(n+1)+'">Nästa kapitel</button>':'')+
+  '</div>';
+  $('#read-foot').innerHTML=foot;
+}
+function openRead(ch){
+  var n=ch;
+  if(!n){
+    n=1;
+    if(state.screen==='game'){var r=curRound();if(r&&r.ch)n=r.ch;}
+  }
+  state.reading=true;state.readCh=n;
+  render();
+  window.scrollTo(0,0);
+}
+function closeRead(){
+  state.reading=false;
+  render();
+  window.scrollTo(0,0);
+}
+function loadChecks(){
+  var o={};
+  try{o=JSON.parse(localStorage.getItem('bygg-huset-chk')||'{}')||{};}catch(e){o={};}
+  return o;
+}
+function initChecks(){
+  var o=loadChecks();
+  Array.prototype.forEach.call(document.querySelectorAll('input[data-k]'),function(i){
+    i.checked=!!o[i.getAttribute('data-k')];
+  });
+}
+document.addEventListener('change',function(e){
+  var t=e.target;
+  if(!t||!t.matches||!t.matches('input[data-k]'))return;
+  var o=loadChecks();
+  o[t.getAttribute('data-k')]=t.checked;
+  try{localStorage.setItem('bygg-huset-chk',JSON.stringify(o));}catch(x){}
+});
+
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-act]');
+  if(!t||t.disabled)return;
+  var a=t.getAttribute('data-act');
+  if(a==='etapp')startEtapp(parseInt(t.getAttribute('data-etapp'),10));
+  else if(a==='card')pickCard(t.getAttribute('data-card'));
+  else if(a==='slot')tryPlace(t.getAttribute('data-slot'),true);
+  else if(a==='bucket')tryPlace(t.getAttribute('data-bucket'),false);
+  else if(a==='next')nextRound();
+  else if(a==='opt')answer(parseInt(t.getAttribute('data-i'),10));
+  else if(a==='nextq')nextQ();
+  else if(a==='again')startEtapp(state.etapp);
+  else if(a==='nextetapp')startEtapp(state.etapp+1);
+  else if(a==='menu'){state=fresh();render();}
+  else if(a==='read')openRead(parseInt(t.getAttribute('data-ch'),10));
+  else if(a==='readback')closeRead();
+});
+
+state=fresh();
+$('#house-start').innerHTML=houseSvg(true);
+$('#house-game').innerHTML=houseSvg(false);
+initChecks();
+render();
+})();
+</script>
