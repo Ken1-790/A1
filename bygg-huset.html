@@ -25,6 +25,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:17px;line-height:1.5;padding-block:20px;padding-inline:16px}
 button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
@@ -169,12 +170,15 @@ p{margin:0}
 .fb.no{color:var(--bad)}
 
 .end{max-width:720px}
-.end .rank{margin:10px 0 14px}
+.end .rank{margin:10px 0 14px;font-size:clamp(1.8rem,7.5vw,4rem);overflow-wrap:anywhere}
 .res{width:100%;border-collapse:collapse;margin:22px 0;font-variant-numeric:tabular-nums}
 .res th,.res td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left}
 .res td:last-child,.res th:last-child{text-align:right;font-family:var(--font-mono);font-size:15px}
 .res th{font-weight:600;font-size:14px;color:var(--muted)}
 .big{font-family:var(--font-mono);font-size:1.1rem;color:var(--brass-ink)}
+.missed{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:6px;max-width:66ch}
+.missed li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 14px;padding:8px 12px;border-left:3px solid var(--brass);background:var(--sunk);border-radius:0 var(--radius) var(--radius) 0}
+.missed .klink{font-size:14px}
 
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 @keyframes pop{0%{transform:scale(.97)}60%{transform:scale(1.015)}100%{transform:scale(1)}}
@@ -603,7 +607,8 @@ var RANKS=[
 var state;
 function fresh(){
   return {reading:false,readCh:1,screen:'start',etapp:0,round:0,score:0,roundScore:[],placed:{},wrong:{},sel:null,msg:'',warn:false,
-          q:0,qWrong:{},qDone:false,keys:0,roundDone:false,shake:null,pop:null};
+          q:0,qWrong:{},qDone:false,keys:0,roundDone:false,shake:null,pop:null,
+          missed:[],review:null,reviewOk:0};
 }
 function resetRound(){
   state.placed={};state.wrong={};state.sel=null;state.msg='';state.warn=false;
@@ -613,7 +618,7 @@ var $=function(s,r){return (r||document).querySelector(s);};
 function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function pts(wrongCount){return wrongCount===0?10:(wrongCount===1?5:2);}
 function curEtapp(){return ETAPPER[state.etapp];}
-function curRound(){return curEtapp().rounds[state.round];}
+function curRound(){return state.review||curEtapp().rounds[state.round];}
 function roundMax(r){return (r.kind==='quiz'?r.questions.length:r.cards.length)*10;}
 function etappMax(e){var m=0;e.rounds.forEach(function(r){m+=roundMax(r);});return m;}
 function findCard(r,id){for(var i=0;i<r.cards.length;i++){if(r.cards[i].id===id)return r.cards[i];}return null;}
@@ -628,6 +633,41 @@ function saveBest(){
     var prev=bestOf(state.etapp);
     if(prev===null||state.score>prev)localStorage.setItem('bygg-huset-best-'+(state.etapp+1),String(state.score));
   }catch(e){}
+}
+
+// Repetition: allt du svarar fel på första gången sparas och kommer tillbaka
+// som en fråga i slutet av etappen, i ett nytt format (flerval).
+function explain(c){return c.why||c.hint;}
+function addMissed(item){
+  for(var i=0;i<state.missed.length;i++){if(state.missed[i].key===item.key)return;}
+  state.missed.push(item);
+}
+function missCard(r,c){
+  var q,o,a;
+  if(r.kind==='sort'){
+    q='Var hör \u201d'+c.text+'\u201d hemma?';
+    o=r.buckets.map(function(b){return b.name;});
+    a=r.buckets.map(function(b){return b.id;}).indexOf(c.slot);
+  }else if(r.examples){
+    q='På vilken nivå i huset hör \u201d'+c.text+'\u201d hemma?';
+    o=SLOTS.map(function(s){return s.term;});
+    a=SLOTS.map(function(s){return s.id;}).indexOf(c.slot);
+  }else{
+    q='Vilken del av huset motsvarar \u201d'+c.text+'\u201d?';
+    o=SLOTS.map(function(s){return s.house;});
+    a=SLOTS.map(function(s){return s.id;}).indexOf(c.slot);
+  }
+  addMissed({key:state.round+':'+c.id,label:c.text,ch:r.ch,q:q,o:o,a:a,why:explain(c)});
+}
+function missQuestion(r,qd){
+  addMissed({key:state.round+':q'+state.q,label:qd.q,ch:r.ch,q:qd.q,o:qd.o,a:qd.a,why:qd.why});
+}
+function makeReview(){
+  return {kind:'quiz',practice:true,ch:state.missed[0].ch,name:'Repetera det du missade',unit:'begrepp',
+    intro:'Det här svarade du fel på första gången. Nu kommer det tillbaka i ny form. Repetitionen ger inga poäng, den hjälper dig att minnas.',
+    cap:'Det du övar på igen efter en stund fastnar bättre än det du bara läser en gång.',
+    takeaway:'Bra jobbat. Det du just har repeterat sitter bättre nästa gång.',
+    questions:state.missed.map(function(m){return {q:m.q,o:m.o,a:m.a,why:m.why};})};
 }
 
 function houseSvg(all){
@@ -664,10 +704,10 @@ function renderHeader(){
   if(!inGame)return;
   var e=curEtapp();var h='';
   for(var i=0;i<e.rounds.length;i++){
-    var cls=(i<state.round||state.screen==='end')?'done':(i===state.round?'cur':'');
+    var cls=(i<state.round||state.screen==='end'||state.review)?'done':(i===state.round?'cur':'');
     h+='<span class="seg '+cls+'"></span>';
   }
-  var lbl=state.screen==='end'?('Etapp '+(state.etapp+1)):('Etapp '+(state.etapp+1)+' · Runda '+(state.round+1)+' av '+e.rounds.length);
+  var lbl=state.screen==='end'?('Etapp '+(state.etapp+1)):(state.review?('Etapp '+(state.etapp+1)+' · Repetition'):('Etapp '+(state.etapp+1)+' · Runda '+(state.round+1)+' av '+e.rounds.length));
   p.innerHTML=h+'<span class="lbl">'+lbl+'</span>';
 }
 
@@ -683,11 +723,16 @@ function renderStart(){
 }
 
 function panelHtml(r,isLast){
+  if(r.practice){
+    return '<div class="panel"><h3>Repetitionen klar: '+state.reviewOk+' av '+r.questions.length+' satt på första försöket</h3>'+
+      '<p>'+esc(r.takeaway)+'</p>'+
+      '<button type="button" class="btn" id="btn-next" data-act="next">Se resultatet</button></div>';
+  }
   return '<div class="panel"><h3>Runda '+(state.round+1)+' klar: '+state.roundScore[state.round]+' av '+roundMax(r)+' poäng</h3>'+
     '<p>'+esc(r.takeaway)+'</p>'+
     '<button type="button" class="btn" id="btn-next" data-act="next">'+(isLast?'Se resultatet':'Nästa runda')+'</button></div>';
 }
-function isLastRound(){return state.round+1>=curEtapp().rounds.length;}
+function isLastRound(){return !!state.review||(state.round+1>=curEtapp().rounds.length&&state.missed.length===0);}
 
 function renderPlace(r){
   var remaining=r.cards.filter(function(c){return !isPlacedInSlot(c.id);});
@@ -772,7 +817,7 @@ function renderQuiz(r){
 
 function renderGame(){
   var r=curRound();
-  $('#round-kicker').textContent='Etapp '+(state.etapp+1)+' · Runda '+(state.round+1);
+  $('#round-kicker').textContent='Etapp '+(state.etapp+1)+' · '+(r.practice?'Repetition':'Runda '+(state.round+1));
   $('#round-title').textContent=r.name;
   $('#round-intro').textContent=r.intro;
   $('#house-cap').textContent=r.cap||'Varje plats du fyller i tänds i huset. Dörren är Teams.';
@@ -788,10 +833,15 @@ function renderEnd(){
   var rank=RANKS[RANKS.length-1];
   for(var i=0;i<RANKS.length;i++){if(ratio>=RANKS[i].min){rank=RANKS[i];break;}}
   var best=bestOf(state.etapp);
-  var weakest=-1,low=1;
-  for(var j=0;j<e.rounds.length;j++){
-    var rt=state.roundScore[j]/roundMax(e.rounds[j]);
-    if(rt<low){low=rt;weakest=j;}
+  var missedHtml;
+  if(state.missed.length===0){
+    missedHtml='<p>Allt rätt på första försöket. Ingenting att repetera.</p>';
+  }else{
+    missedHtml='<h3 style="margin-top:8px">Det här missade du först</h3>'+
+      '<p style="margin-top:6px;color:var(--muted)">I repetitionen satt '+state.reviewOk+' av '+state.missed.length+' på första försöket. Läs kapitlet för det som fortfarande känns osäkert.</p>'+
+      '<ul class="missed">'+state.missed.map(function(m){
+        return '<li><span>'+esc(m.label)+'</span><button type="button" class="klink" data-act="read" data-ch="'+m.ch+'">Kapitel '+m.ch+'</button></li>';
+      }).join('')+'</ul>';
   }
   var rows=e.rounds.map(function(r,k){
     return '<tr><td>'+esc(r.name)+'</td><td>'+state.roundScore[k]+' av '+roundMax(r)+'</td></tr>';
@@ -804,7 +854,7 @@ function renderEnd(){
     '<p class="big">'+total+' av '+max+' poäng'+((best!==null&&best>total)?' · bäst hittills '+best:'')+'</p>'+
     '<p style="margin-top:14px;max-width:56ch">'+esc(rank.txt)+'</p>'+
     '<table class="res"><thead><tr><th>Runda</th><th>Poäng</th></tr></thead><tbody>'+rows+'</tbody></table>'+
-    (weakest>=0&&low<1?'<p>Mest att repetera: '+esc(e.rounds[weakest].review)+'. <button type="button" class="klink" data-act="read" data-ch="'+e.rounds[weakest].ch+'">Öppna kapitlet</button></p>':'<p>Full pott i alla rundor. Ingenting att repetera.</p>')+
+    missedHtml+
     '<div class="btns">'+
       (hasNext?'<button type="button" class="btn" id="btn-nextetapp" data-act="nextetapp">Nästa etapp: '+esc(ETAPPER[nextIdx].name)+'</button>':'')+
       '<button type="button" class="btn ghost" id="btn-again" data-act="again">Spela etappen igen</button>'+
@@ -852,11 +902,12 @@ function tryPlace(targetId,isSlot){
   if(c.slot===targetId){
     var p=award(c);
     if(isSlot)state.placed[targetId]=c.id;else state.placed[c.id]=targetId;
-    state.sel=null;state.msg='Rätt! +'+p+' poäng.';state.warn=false;state.pop=targetId;
+    state.sel=null;state.msg='Rätt! +'+p+' poäng. '+explain(c);state.warn=false;state.pop=targetId;
     render();
     if($('#btn-next'))focusSel('#btn-next');else focusSel('.card');
   }else{
     state.wrong[c.id]=(state.wrong[c.id]||0)+1;
+    missCard(r,c);
     state.msg='Inte där. '+c.hint;state.warn=true;state.shake=targetId;
     render();focusSel('[data-card="'+c.id+'"]');
   }
@@ -865,10 +916,13 @@ function answer(i){
   var r=curRound();var qd=r.questions[state.q];
   if(state.qDone)return;
   if(i===qd.a){
-    var p=pts(Object.keys(state.qWrong).length);
-    state.score+=p;state.roundScore[state.round]+=p;state.keys++;state.qDone=true;
+    var first=Object.keys(state.qWrong).length===0;
+    if(r.practice){if(first)state.reviewOk++;}
+    else{var p=pts(Object.keys(state.qWrong).length);state.score+=p;state.roundScore[state.round]+=p;}
+    state.keys++;state.qDone=true;
     render();focusSel('#btn-nextq');
   }else{
+    if(!r.practice)missQuestion(r,qd);
     state.qWrong[i]=1;render();focusSel('.opt:not(:disabled)');
   }
 }
@@ -881,8 +935,10 @@ function nextQ(){
   }
 }
 function nextRound(){
-  if(state.round+1<curEtapp().rounds.length){
+  if(!state.review&&state.round+1<curEtapp().rounds.length){
     state.round++;resetRound();render();focusSel(firstFocus());
+  }else if(!state.review&&state.missed.length>0){
+    resetRound();state.review=makeReview();render();focusSel('.opt');
   }else{
     saveBest();state.screen='end';render();focusSel('#btn-again');
   }
